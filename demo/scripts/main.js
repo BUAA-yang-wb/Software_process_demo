@@ -46,6 +46,63 @@ function renderProtectedRoute(route, ctx) {
     }
     case "profile":
       return renderProfilePage(ctx);
+    case "exams":
+      return renderExamsPage(ctx);
+    case "exam-create":
+      return renderExamFormPage(ctx, null);
+    case "exam-taking": {
+      const targetExam = ctx.exams.find((exam) => exam.id === route.params.examId) ?? null;
+
+      if (!targetExam) {
+        return renderNotFoundPage(ctx, "没有找到对应考试任务。", "当前请求的考试不存在或已被移除。");
+      }
+
+      const canTake =
+        ctx.role === "Student" &&
+        targetExam.status === "published" &&
+        targetExam.assignedStudentIds.includes(ctx.currentUser.id) &&
+        getExamPhase(targetExam) === "ongoing";
+
+      if (!canTake) {
+        return renderForbiddenPage(ctx, "当前考试不可进入。", "仅考试中的已分配考试可进入。", "#/exams");
+      }
+
+      return renderExamTakingPage(ctx, targetExam);
+    }
+    case "exam-edit": {
+      const targetExam = ctx.exams.find((exam) => exam.id === route.params.examId) ?? null;
+
+      if (!targetExam) {
+        return renderNotFoundPage(ctx, "没有找到要编辑的考试任务。", "当前请求的考试不存在或已被移除。");
+      }
+
+      if (ctx.role === "Teacher" && targetExam.createdBy !== ctx.currentUser.id) {
+        return renderForbiddenPage(ctx, "当前角色不能编辑该考试任务。", "你只能维护自己创建的考试任务。", "#/exams");
+      }
+
+      return renderExamFormPage(ctx, targetExam);
+    }
+    case "exam-detail": {
+      const targetExam = ctx.exams.find((exam) => exam.id === route.params.examId) ?? null;
+
+      if (!targetExam) {
+        return renderNotFoundPage(ctx, "没有找到对应考试任务。", "当前请求的考试不存在或已被移除。");
+      }
+
+      if (ctx.role === "Teacher" && targetExam.createdBy !== ctx.currentUser.id) {
+        return renderForbiddenPage(ctx, "当前角色不能查看该考试任务。", "教师只能查看自己创建的考试任务。", "#/exams");
+      }
+
+      if (ctx.role === "Student") {
+        const canView = targetExam.status === "published" && targetExam.assignedStudentIds.includes(ctx.currentUser.id);
+
+        if (!canView) {
+          return renderForbiddenPage(ctx, "当前考试任务不可访问。", "你只能查看已分配给自己的已发布考试。", "#/exams");
+        }
+      }
+
+      return renderExamDetailPage(ctx, targetExam);
+    }
     case "forbidden":
       return renderForbiddenPage(ctx, "当前角色没有访问目标资源的权限。");
     default:
@@ -122,6 +179,7 @@ function initializeApp() {
     resetData: resetLocalData,
     simulateRemoteLogin,
     listAccounts: () => cloneData(demoAccounts),
+    listExams: () => cloneData(getExams()),
   };
 
   if (!location.hash) {

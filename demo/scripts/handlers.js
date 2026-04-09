@@ -41,6 +41,30 @@
     return;
   }
 
+  if (target.id === "exam-filters-form") {
+    event.preventDefault();
+    const formData = new FormData(target);
+    appState.examFilters = {
+      query: String(formData.get("query") || ""),
+      status: String(formData.get("status") || "all"),
+      teacherId: String(formData.get("teacherId") || appState.examFilters.teacherId || "all"),
+    };
+    renderApp();
+    return;
+  }
+
+  if (target.id === "exam-form") {
+    event.preventDefault();
+    handleExamFormSubmit(target);
+    return;
+  }
+
+  if (target.id === "exam-assignment-form") {
+    event.preventDefault();
+    handleExamAssignmentSubmit(target);
+    return;
+  }
+
   if (target.id === "profile-form") {
     event.preventDefault();
     handleProfileSubmit(target);
@@ -86,7 +110,363 @@ function handleClick(event) {
   if (action === "reset-filters") {
     appState.userFilters = { query: "", role: "all", status: "all" };
     renderApp();
+    return;
   }
+
+  if (action === "reset-exam-filters") {
+    appState.examFilters = { query: "", status: "all", teacherId: "all" };
+    renderApp();
+    return;
+  }
+
+  if (action === "publish-exam") {
+    handlePublishExam(target.dataset.examId);
+    return;
+  }
+
+  if (action === "delete-exam") {
+    handleDeleteExam(target.dataset.examId);
+    return;
+  }
+
+  if (action === "mock-enter-exam") {
+    const session = getCurrentSession();
+    const users = getUsers();
+    const currentUser = getCurrentUserFromSession(session, users);
+    const exam = getExams().find((item) => item.id === target.dataset.examId);
+
+    if (!session || !currentUser || !exam) {
+      showToast("考试信息不存在或登录状态失效。", "warning");
+      return;
+    }
+
+    if (session.currentRole !== "Student") {
+      showToast("当前入口仅面向学生考试流程。", "warning");
+      return;
+    }
+
+    if (!exam.assignedStudentIds.includes(currentUser.id) || exam.status !== "published") {
+      showToast("当前考试未分配给你或尚未发布。", "warning");
+      return;
+    }
+
+    const phase = getExamPhase(exam);
+
+    if (phase !== "ongoing") {
+      showToast(`${getExamPhaseMeta(phase).label}，暂不可参加。`, "warning");
+      return;
+    }
+
+    navigate(`/exams/${exam.id}/take`);
+    return;
+  }
+
+  if (action === "submit-exam") {
+    const session = getCurrentSession();
+    const users = getUsers();
+    const currentUser = getCurrentUserFromSession(session, users);
+    const exam = getExams().find((item) => item.id === target.dataset.examId);
+
+    if (!session || !currentUser || !exam || session.currentRole !== "Student") {
+      showToast("提交失败，请刷新后重试。", "warning");
+      return;
+    }
+
+    setFlash(`你已提交《${exam.title}》。`, "success");
+    navigate(`/exams/${exam.id}`);
+  }
+}
+
+function handleExamFormSubmit(form) {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+  const editingId = form.dataset.examId || "";
+
+  if (!currentSession || !currentUser || !["Teacher", "Admin"].includes(currentSession.currentRole)) {
+    showToast("当前角色无权维护考试任务。", "warning");
+    return;
+  }
+
+  const exams = getExams();
+  const editingExam = editingId ? exams.find((exam) => exam.id === editingId) ?? null : null;
+
+  if (editingId && !editingExam) {
+    showToast("目标考试不存在。", "warning");
+    navigate("/exams");
+    return;
+  }
+
+  if (editingExam && currentSession.currentRole === "Teacher" && editingExam.createdBy !== currentUser.id) {
+    showToast("你只能编辑自己创建的考试任务。", "warning");
+    navigate("/exams");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const title = String(formData.get("title") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const startAt = String(formData.get("startAt") || "").trim();
+  const endAt = String(formData.get("endAt") || "").trim();
+  const durationMinutes = Number(formData.get("durationMinutes") || 0);
+  const allowSwitchCount = Number(formData.get("allowSwitchCount") || 0);
+  const shuffleQuestions = Boolean(formData.get("shuffleQuestions"));
+  const teacherIdFromForm = String(formData.get("teacherId") || "").trim();
+
+  if (!title) {
+    showToast("请填写考试标题。", "warning");
+    return;
+  }
+
+  if (!startAt || !endAt) {
+    showToast("请设置考试开始与结束时间。", "warning");
+    return;
+  }
+
+  const startDate = new Date(startAt);
+  const endDate = new Date(endAt);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    showToast("考试时间格式不正确。", "warning");
+    return;
+  }
+
+  if (endDate <= startDate) {
+    showToast("结束时间必须晚于开始时间。", "warning");
+    return;
+  }
+
+  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+    showToast("答题时长必须为正整数。", "warning");
+    return;
+  }
+
+  if (!Number.isFinite(allowSwitchCount) || allowSwitchCount < 0) {
+    showToast("允许切屏次数不能为负数。", "warning");
+    return;
+  }
+
+  let ownerTeacherId = currentUser.id;
+
+  if (currentSession.currentRole === "Admin") {
+    ownerTeacherId = teacherIdFromForm || editingExam?.createdBy || "";
+    const ownerTeacher = users.find((user) => user.id === ownerTeacherId && user.primaryRole === "Teacher" && user.status === "active");
+
+    if (!ownerTeacher) {
+      showToast("请先选择有效教师后再保存考试。", "warning");
+      return;
+    }
+  }
+
+  const now = new Date().toISOString();
+  let savedExam;
+  let nextExams;
+
+  if (editingExam) {
+    savedExam = {
+      ...editingExam,
+      createdBy: ownerTeacherId,
+      title,
+      description,
+      startAt: startDate.toISOString(),
+      endAt: endDate.toISOString(),
+      durationMinutes,
+      allowSwitchCount,
+      shuffleQuestions,
+      updatedAt: now,
+    };
+
+    nextExams = exams.map((exam) => (exam.id === savedExam.id ? savedExam : exam));
+  } else {
+    savedExam = {
+      id: createId("exam"),
+      title,
+      description,
+      startAt: startDate.toISOString(),
+      endAt: endDate.toISOString(),
+      durationMinutes,
+      allowSwitchCount,
+      shuffleQuestions,
+      status: "draft",
+      assignedStudentIds: [],
+      createdBy: ownerTeacherId,
+      createdAt: now,
+      updatedAt: now,
+      publishedAt: "",
+    };
+
+    nextExams = [savedExam, ...exams];
+  }
+
+  saveExams(nextExams);
+  appendAuditLog({
+    userId: currentUser.id,
+    action: editingExam ? "update:exam" : "create:exam",
+    targetId: savedExam.id,
+    detail: `${currentUser.name}${editingExam ? "更新" : "创建"}了考试任务 ${savedExam.title}。`,
+  });
+
+  showToast(editingExam ? "考试任务已更新。" : "考试任务已创建。", "success");
+  navigate(editingExam ? `/exams/${savedExam.id}` : "/exams");
+}
+
+function handleExamAssignmentSubmit(form) {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+  const examId = form.dataset.examId || "";
+
+  if (!currentSession || !currentUser || !["Teacher", "Admin"].includes(currentSession.currentRole)) {
+    showToast("当前角色无权维护考试分配。", "warning");
+    return;
+  }
+
+  const exams = getExams();
+  const exam = exams.find((item) => item.id === examId);
+
+  if (!exam) {
+    showToast("考试任务不存在。", "warning");
+    navigate("/exams");
+    return;
+  }
+
+  if (currentSession.currentRole === "Teacher" && exam.createdBy !== currentUser.id) {
+    showToast("只能维护自己创建的考试任务。", "warning");
+    navigate("/exams");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const selectedIds = Array.from(new Set(formData.getAll("studentIds").map((value) => String(value))));
+  const validStudentIds = getManagedStudentsForTeacher(exam.createdBy, users)
+    .filter((student) => student.status === "active")
+    .map((student) => student.id);
+  const nextAssigned = selectedIds.filter((id) => validStudentIds.includes(id));
+
+  const nextExams = exams.map((item) =>
+    item.id === exam.id
+      ? {
+          ...item,
+          assignedStudentIds: nextAssigned,
+          updatedAt: new Date().toISOString(),
+        }
+      : item
+  );
+
+  saveExams(nextExams);
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "assign:exam",
+    targetId: exam.id,
+    detail: `${currentUser.name}更新了考试任务 ${exam.title} 的分配名单，共 ${nextAssigned.length} 人。`,
+  });
+
+  showToast("考试分配已保存。", "success");
+  renderApp();
+}
+
+function handlePublishExam(examId) {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+
+  if (!currentSession || !currentUser || !["Teacher", "Admin"].includes(currentSession.currentRole)) {
+    showToast("当前角色无权发布考试。", "warning");
+    return;
+  }
+
+  const exams = getExams();
+  const target = exams.find((exam) => exam.id === examId);
+
+  if (!target) {
+    showToast("考试任务不存在。", "warning");
+    return;
+  }
+
+  if (currentSession.currentRole === "Teacher" && target.createdBy !== currentUser.id) {
+    showToast("只能发布自己创建的考试任务。", "warning");
+    return;
+  }
+
+  if (target.status === "published") {
+    showToast("该考试已经发布。", "info");
+    return;
+  }
+
+  if (!target.assignedStudentIds.length) {
+    showToast("请先分配学生后再发布考试。", "warning");
+    return;
+  }
+
+  if (!target.startAt || !target.endAt || new Date(target.endAt) <= new Date(target.startAt)) {
+    showToast("考试时间窗无效，无法发布。", "warning");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const nextExams = exams.map((exam) =>
+    exam.id === target.id
+      ? {
+          ...exam,
+          status: "published",
+          publishedAt: now,
+          updatedAt: now,
+        }
+      : exam
+  );
+
+  saveExams(nextExams);
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "publish:exam",
+    targetId: target.id,
+    detail: `${currentUser.name}发布了考试任务 ${target.title}。`,
+  });
+
+  showToast("考试已发布。", "success");
+  renderApp();
+}
+
+function handleDeleteExam(examId) {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+
+  if (!currentSession || !currentUser || !["Teacher", "Admin"].includes(currentSession.currentRole)) {
+    showToast("当前角色无权删除考试。", "warning");
+    return;
+  }
+
+  const exams = getExams();
+  const target = exams.find((exam) => exam.id === examId);
+
+  if (!target) {
+    showToast("考试任务不存在。", "warning");
+    return;
+  }
+
+  if (currentSession.currentRole === "Teacher" && target.createdBy !== currentUser.id) {
+    showToast("只能删除自己创建的考试任务。", "warning");
+    return;
+  }
+
+  const nextExams = exams.filter((exam) => exam.id !== examId);
+  saveExams(nextExams);
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "delete:exam",
+    targetId: examId,
+    detail: `${currentUser.name}删除了考试任务 ${target.title}。`,
+  });
+
+  showToast("考试任务已删除。", "success");
+
+  if (getHashPath() === `/exams/${examId}` || getHashPath() === `/exams/${examId}/edit`) {
+    navigate("/exams");
+    return;
+  }
+
+  renderApp();
 }
 
 function handleLoginSubmit(form) {
@@ -145,6 +525,7 @@ function handleLoginSubmit(form) {
   saveActiveSessions(activeSessions);
   setCurrentSession(session);
   appState.userFilters = { query: "", role: "all", status: "all" };
+  appState.examFilters = { query: "", status: "all", teacherId: "all" };
 
   const updatedUsers = users.map((item) =>
     item.id === user.id
@@ -627,6 +1008,7 @@ function handleLogout() {
 
   clearCurrentSession({ removeRegistry: true });
   appState.userFilters = { query: "", role: "all", status: "all" };
+  appState.examFilters = { query: "", status: "all", teacherId: "all" };
   setFlash("你已安全退出登录。", "success");
   navigate("/login");
 }
@@ -667,7 +1049,7 @@ function validateReplacedSession() {
 }
 
 function handleStorageSync(event) {
-  if (event.key !== STORAGE_KEYS.activeSessions && event.key !== STORAGE_KEYS.users) {
+  if (event.key !== STORAGE_KEYS.activeSessions && event.key !== STORAGE_KEYS.users && event.key !== STORAGE_KEYS.exams) {
     return;
   }
 
@@ -705,6 +1087,12 @@ function handleStorageSync(event) {
       setCurrentSession(session);
       renderApp();
     }
+
+    return;
+  }
+
+  if (event.key === STORAGE_KEYS.exams) {
+    renderApp();
   }
 }
 
@@ -712,8 +1100,10 @@ function resetLocalData() {
   localStorage.removeItem(STORAGE_KEYS.users);
   localStorage.removeItem(STORAGE_KEYS.auditLogs);
   localStorage.removeItem(STORAGE_KEYS.activeSessions);
+  localStorage.removeItem(STORAGE_KEYS.exams);
   sessionStorage.removeItem(SESSION_KEYS.currentSession);
   appState.userFilters = { query: "", role: "all", status: "all" };
+  appState.examFilters = { query: "", status: "all", teacherId: "all" };
   seedDemoData();
   setFlash("系统数据已恢复到初始状态。", "success");
   navigate("/login");

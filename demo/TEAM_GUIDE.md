@@ -13,8 +13,9 @@
 ## 当前 Demo 角色范围
 
 - 管理员：可查看并维护全平台用户，支持单角色分配。
+- 管理员：可选择教师并进入该教师考试管理视图，执行教师等效考试操作。
 - 教师：只查看本人及所属学生，不显示管理员与其他教师。
-- 学生：只查看个人资料。
+- 学生：查看个人资料与已分配考试，仅在“考试中”可参加考试。
 
 ## 隐藏辅助能力
 
@@ -22,6 +23,7 @@
 
 ```js
 window.ExamPortalTools.listAccounts()
+window.ExamPortalTools.listExams()
 window.ExamPortalTools.resetData()
 window.ExamPortalTools.simulateRemoteLogin()
 ```
@@ -29,8 +31,18 @@ window.ExamPortalTools.simulateRemoteLogin()
 说明：
 
 - `listAccounts()`：查看预置账号
+- `listExams()`：查看考试任务与分配数据
 - `resetData()`：将本地数据恢复到初始状态
 - `simulateRemoteLogin()`：模拟当前账号在其他位置登录，用于演示互斥会话
+
+## 考试样例（学生端演示）
+
+- `exam-001`：未开始（显示“未开始”，点击“参加考试”后提示不可参加）
+- `exam-002`：考试中（显示“考试中”，点击“参加考试”可进入）
+- `exam-003`：已结束（显示“已结束”，点击“参加考试”后提示不可参加）
+- `exam-004`：考试中（全年时间窗 `2026-01-01` 到 `2026-12-31`，用于稳定演示进入考试界面）
+
+说明：学生端按钮始终显示为“参加考试”，可参加性在点击后校验并提示。
 
 ## 代码扩展建议
 
@@ -57,7 +69,7 @@ window.ExamPortalTools.simulateRemoteLogin()
 建议其他同学按以下方式继续接入：
 
 - 题库管理：新增 `scripts/pages-question-bank.js`
-- 考试管理：新增 `scripts/pages-exams.js`
+- 考试管理：已接入 `scripts/pages-exams.js`
 - 成绩分析：新增 `scripts/pages-grades.js`
 - 对应页面统一复用当前顶栏、侧边栏、角色上下文与状态存储逻辑
 

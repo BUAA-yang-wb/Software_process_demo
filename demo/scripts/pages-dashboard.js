@@ -93,6 +93,7 @@ function renderTeacherDashboard(ctx) {
     description: "查看本人及所属学生账号，完成学生名单维护。",
     actions: `
       <a class="btn btn--primary" href="#/users/new">新增学生</a>
+      <a class="btn btn--soft" href="#/exams/new">新建考试</a>
       <a class="btn btn--secondary" href="#/users">学生名单</a>
     `,
     content: `
@@ -182,6 +183,7 @@ function renderStudentDashboard(ctx) {
     title: `欢迎回来，${escapeHtml(ctx.currentUser.name)}`,
     description: "查看个人资料、账号状态与常用入口。",
     actions: `
+      <a class="btn btn--soft" href="#/exams">我的考试</a>
       <a class="btn btn--primary" href="#/profile">个人资料</a>
     `,
     content: `
@@ -222,6 +224,7 @@ function renderStudentDashboard(ctx) {
           <h3>常用服务</h3>
           <div class="quick-grid">
             ${renderQuickCard("资", "个人资料", "维护姓名、邮箱、班级与联系方式。")}
+            ${renderQuickCard("考", "我的考试", "查看已分配考试并进入考试详情。")}
             ${renderQuickCard("安", "账号安全", "查看登录状态与密码重置提示。")}
             ${renderQuickCard("服", "服务入口", "从工作台进入常用功能。")}
             ${renderQuickCard("息", "资料核对", "快速确认账号状态、班级与联系方式。")}

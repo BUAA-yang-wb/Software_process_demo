@@ -2,6 +2,7 @@
   users: "sp_demo_users",
   auditLogs: "sp_demo_audit_logs",
   activeSessions: "sp_demo_active_sessions",
+  exams: "sp_demo_exams",
 };
 
 const SESSION_KEYS = {
@@ -31,16 +32,23 @@ const statusTones = {
 const navMeta = {
   dashboard: { label: "首页", icon: "首" },
   users: { label: "用户管理", icon: "户" },
+  exams: { label: "考试管理", icon: "考" },
   profile: { label: "个人中心", icon: "我" },
 };
 
 const permissionMap = {
-  Student: ["profile:view", "profile:update"],
+  Student: ["profile:view", "profile:update", "exam:view:own"],
   Teacher: [
     "user:view",
     "user:create",
     "user:update",
     "user:freeze",
+    "exam:view",
+    "exam:create",
+    "exam:update",
+    "exam:publish",
+    "exam:delete",
+    "exam:assign",
     "profile:view",
     "profile:update",
   ],
@@ -50,6 +58,12 @@ const permissionMap = {
     "user:update",
     "user:freeze",
     "role:assign",
+    "exam:view",
+    "exam:create",
+    "exam:update",
+    "exam:publish",
+    "exam:delete",
+    "exam:assign",
     "profile:view",
     "profile:update",
   ],
@@ -68,6 +82,11 @@ const appState = {
     query: "",
     role: "all",
     status: "all",
+  },
+  examFilters: {
+    query: "",
+    status: "all",
+    teacherId: "all",
   },
 };
 
@@ -104,6 +123,79 @@ function seedDemoData() {
   if (!localStorage.getItem(STORAGE_KEYS.activeSessions)) {
     writeStorage(localStorage, STORAGE_KEYS.activeSessions, {});
   }
+
+  const seedExams = createSeedExams();
+  const existingExams = readStorage(localStorage, STORAGE_KEYS.exams, null);
+  writeStorage(localStorage, STORAGE_KEYS.exams, normalizeExams(existingExams ? mergeSeedExams(existingExams, seedExams) : seedExams));
+}
+
+function createSeedExams() {
+  return [
+    {
+      id: "exam-001",
+      title: "软件过程阶段测验",
+      description: "覆盖需求分析与用例建模，闭卷 60 分钟。",
+      startAt: "2026-05-15T09:00:00",
+      endAt: "2026-05-15T11:00:00",
+      durationMinutes: 60,
+      allowSwitchCount: 3,
+      shuffleQuestions: true,
+      status: "published",
+      assignedStudentIds: ["user-student-001", "user-student-002"],
+      createdBy: "user-teacher-001",
+      createdAt: "2026-04-05T10:00:00",
+      updatedAt: "2026-04-08T16:30:00",
+      publishedAt: "2026-04-08T16:30:00",
+    },
+    {
+      id: "exam-002",
+      title: "面向对象设计随堂测试",
+      description: "重点考察类关系与设计原则。",
+      startAt: "2026-04-10T09:00:00",
+      endAt: "2026-04-10T18:00:00",
+      durationMinutes: 45,
+      allowSwitchCount: 2,
+      shuffleQuestions: false,
+      status: "published",
+      assignedStudentIds: ["user-student-001", "user-student-002"],
+      createdBy: "user-teacher-001",
+      createdAt: "2026-04-09T09:00:00",
+      updatedAt: "2026-04-10T09:30:00",
+      publishedAt: "2026-04-10T09:30:00",
+    },
+    {
+      id: "exam-003",
+      title: "数据库系统期中测验",
+      description: "已结束样例，用于演示结束后不可参加。",
+      startAt: "2026-04-06T09:00:00",
+      endAt: "2026-04-06T11:00:00",
+      durationMinutes: 60,
+      allowSwitchCount: 2,
+      shuffleQuestions: false,
+      status: "published",
+      assignedStudentIds: ["user-student-001", "user-student-002"],
+      createdBy: "user-teacher-001",
+      createdAt: "2026-04-04T10:00:00",
+      updatedAt: "2026-04-06T11:10:00",
+      publishedAt: "2026-04-05T15:00:00",
+    },
+    {
+      id: "exam-004",
+      title: "软件工程年度实践考试",
+      description: "全年进行中样例，用于演示可进入考试界面。",
+      startAt: "2026-01-01T00:00:00",
+      endAt: "2026-12-31T23:59:00",
+      durationMinutes: 90,
+      allowSwitchCount: 5,
+      shuffleQuestions: true,
+      status: "published",
+      assignedStudentIds: ["user-student-001", "user-student-002"],
+      createdBy: "user-teacher-001",
+      createdAt: "2026-01-02T09:00:00",
+      updatedAt: "2026-04-10T10:00:00",
+      publishedAt: "2026-01-03T08:30:00",
+    },
+  ];
 }
 
 function createSeedUsers() {
@@ -290,6 +382,31 @@ function mergeSeedAuditLogs(existingLogs, seedLogs) {
   return [...mergedSeedLogs, ...customLogs].slice(0, 120);
 }
 
+function mergeSeedExams(existingExams, seedExams) {
+  const usedExistingIds = new Set();
+
+  const mergedSeedExams = seedExams.map((seedExam) => {
+    const existingExam = existingExams.find((exam) => exam.id === seedExam.id);
+
+    if (!existingExam) {
+      return seedExam;
+    }
+
+    usedExistingIds.add(existingExam.id);
+
+    return {
+      ...seedExam,
+      ...existingExam,
+      assignedStudentIds: Array.isArray(existingExam.assignedStudentIds)
+        ? existingExam.assignedStudentIds
+        : seedExam.assignedStudentIds,
+    };
+  });
+
+  const customExams = existingExams.filter((exam) => !usedExistingIds.has(exam.id));
+  return [...mergedSeedExams, ...customExams];
+}
+
 function normalizeUsers(users) {
   return users.map((user) => {
     const fallbackRole = user.primaryRole || user.roles?.[0] || "Student";
@@ -306,6 +423,25 @@ function normalizeUsers(users) {
 
 function normalizeAuditLogs(logs) {
   return logs.filter((log) => log.action !== "switch:role");
+}
+
+function normalizeExams(exams) {
+  return exams.map((exam) => ({
+    id: exam.id,
+    title: String(exam.title || "").trim(),
+    description: String(exam.description || "").trim(),
+    startAt: exam.startAt || "",
+    endAt: exam.endAt || "",
+    durationMinutes: Number(exam.durationMinutes) > 0 ? Number(exam.durationMinutes) : 60,
+    allowSwitchCount: Number.isFinite(Number(exam.allowSwitchCount)) ? Number(exam.allowSwitchCount) : 3,
+    shuffleQuestions: Boolean(exam.shuffleQuestions),
+    status: exam.status === "published" ? "published" : "draft",
+    assignedStudentIds: Array.isArray(exam.assignedStudentIds) ? [...new Set(exam.assignedStudentIds)] : [],
+    createdBy: exam.createdBy || "",
+    createdAt: exam.createdAt || new Date().toISOString(),
+    updatedAt: exam.updatedAt || exam.createdAt || new Date().toISOString(),
+    publishedAt: exam.publishedAt || "",
+  }));
 }
 
 function readStorage(storage, key, fallbackValue) {
@@ -343,6 +479,14 @@ function saveAuditLogs(logs) {
 
 function getActiveSessions() {
   return readStorage(localStorage, STORAGE_KEYS.activeSessions, {});
+}
+
+function getExams() {
+  return readStorage(localStorage, STORAGE_KEYS.exams, []);
+}
+
+function saveExams(exams) {
+  writeStorage(localStorage, STORAGE_KEYS.exams, normalizeExams(exams));
 }
 
 function saveActiveSessions(activeSessions) {
@@ -411,6 +555,41 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getExamPhase(exam, now = new Date()) {
+  if (!exam || exam.status !== "published") {
+    return "not-started";
+  }
+
+  const start = new Date(exam.startAt);
+  const end = new Date(exam.endAt);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return "not-started";
+  }
+
+  if (now < start) {
+    return "not-started";
+  }
+
+  if (now > end) {
+    return "ended";
+  }
+
+  return "ongoing";
+}
+
+function getExamPhaseMeta(phase) {
+  if (phase === "ongoing") {
+    return { label: "考试中", tone: "success" };
+  }
+
+  if (phase === "ended") {
+    return { label: "已结束", tone: "danger" };
+  }
+
+  return { label: "未开始", tone: "warning" };
 }
 
 function passwordIsValid(password) {
@@ -484,6 +663,55 @@ function resolveRoute(path) {
       name: "user-create",
       requiresAuth: true,
       allowedRoles: ["Teacher", "Admin"],
+    };
+  }
+
+  if (path === "/exams") {
+    return {
+      name: "exams",
+      requiresAuth: true,
+      allowedRoles: ["Teacher", "Admin", "Student"],
+    };
+  }
+
+  if (path === "/exams/new") {
+    return {
+      name: "exam-create",
+      requiresAuth: true,
+      allowedRoles: ["Teacher", "Admin"],
+    };
+  }
+
+  const examTakeMatch = path.match(/^\/exams\/([^/]+)\/take$/);
+
+  if (examTakeMatch) {
+    return {
+      name: "exam-taking",
+      requiresAuth: true,
+      allowedRoles: ["Student"],
+      params: { examId: examTakeMatch[1] },
+    };
+  }
+
+  const examEditMatch = path.match(/^\/exams\/([^/]+)\/edit$/);
+
+  if (examEditMatch) {
+    return {
+      name: "exam-edit",
+      requiresAuth: true,
+      allowedRoles: ["Teacher", "Admin"],
+      params: { examId: examEditMatch[1] },
+    };
+  }
+
+  const examDetailMatch = path.match(/^\/exams\/([^/]+)$/);
+
+  if (examDetailMatch) {
+    return {
+      name: "exam-detail",
+      requiresAuth: true,
+      allowedRoles: ["Teacher", "Admin", "Student"],
+      params: { examId: examDetailMatch[1] },
     };
   }
 
@@ -767,6 +995,11 @@ function getActionLabel(action) {
     register: "学生注册",
     "switch:role": "切换角色",
     "update:profile": "更新个人资料",
+    "create:exam": "创建考试任务",
+    "update:exam": "更新考试任务",
+    "publish:exam": "发布考试任务",
+    "delete:exam": "删除考试任务",
+    "assign:exam": "维护考试分配",
   };
 
   return labels[action] ?? action;
@@ -781,6 +1014,7 @@ function createRenderContext({ route, session, currentUser, users, flash }) {
     session,
     currentUser,
     users,
+    exams: getExams(),
     visibleUsers,
     manageableUsers,
     auditLogs: getAuditLogs(),

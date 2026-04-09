@@ -165,6 +165,16 @@ function getMenuItems(role) {
   if (role === "Student") {
     return [
       { key: "dashboard", href: "/dashboard", label: navMeta.dashboard.label, icon: navMeta.dashboard.icon },
+      { key: "exams", href: "/exams", label: navMeta.exams.label, icon: navMeta.exams.icon },
+      { key: "profile", href: "/profile", label: navMeta.profile.label, icon: navMeta.profile.icon },
+    ];
+  }
+
+  if (role === "Teacher") {
+    return [
+      { key: "dashboard", href: "/dashboard", label: navMeta.dashboard.label, icon: navMeta.dashboard.icon },
+      { key: "users", href: "/users", label: navMeta.users.label, icon: navMeta.users.icon },
+      { key: "exams", href: "/exams", label: navMeta.exams.label, icon: navMeta.exams.icon },
       { key: "profile", href: "/profile", label: navMeta.profile.label, icon: navMeta.profile.icon },
     ];
   }
@@ -172,6 +182,7 @@ function getMenuItems(role) {
   return [
     { key: "dashboard", href: "/dashboard", label: navMeta.dashboard.label, icon: navMeta.dashboard.icon },
     { key: "users", href: "/users", label: navMeta.users.label, icon: navMeta.users.icon },
+    { key: "exams", href: "/exams", label: navMeta.exams.label, icon: navMeta.exams.icon },
     { key: "profile", href: "/profile", label: navMeta.profile.label, icon: navMeta.profile.icon },
   ];
 }
@@ -183,6 +194,10 @@ function isNavItemActive(route, key) {
 
   if (key === "dashboard") {
     return route.name === "dashboard";
+  }
+
+  if (key === "exams") {
+    return route.name === "exams" || route.name === "exam-detail" || route.name === "exam-create" || route.name === "exam-edit" || route.name === "exam-taking";
   }
 
   return route.name === "profile";
