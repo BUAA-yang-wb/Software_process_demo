@@ -14,6 +14,28 @@ function renderProtectedRoute(route, ctx) {
   switch (route.name) {
     case "dashboard":
       return renderDashboardPage(ctx);
+    case "question-bank":
+      return renderQuestionBankPage(ctx);
+    case "question-create":
+      return renderQuestionFormPage(ctx, null);
+    case "question-edit": {
+      const targetQuestion = ctx.questions.find((question) => question.id === route.params.questionId) ?? null;
+
+      if (!targetQuestion) {
+        return renderNotFoundPage(ctx, "没有找到要编辑的试题。", "当前请求的试题不存在或已被移除。");
+      }
+
+      return renderQuestionFormPage(ctx, targetQuestion);
+    }
+    case "question-detail": {
+      const detailQuestion = ctx.questions.find((question) => question.id === route.params.questionId) ?? null;
+
+      if (!detailQuestion) {
+        return renderNotFoundPage(ctx, "没有找到对应试题。", "当前请求的试题不存在或已被移除。");
+      }
+
+      return renderQuestionDetailPage(ctx, detailQuestion);
+    }
     case "users":
       return renderUsersPage(ctx);
     case "user-create":

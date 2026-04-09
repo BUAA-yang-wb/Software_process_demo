@@ -129,16 +129,16 @@ function renderSidebar(ctx) {
     </a>
     <nav class="sidebar-nav">
       ${menu
-        .map((item) => {
-          const active = isNavItemActive(ctx.route, item.key);
-          return `
+      .map((item) => {
+        const active = isNavItemActive(ctx.route, item.key);
+        return `
             <a class="nav-link ${active ? "is-active" : ""}" href="#${item.href}">
               <span class="nav-icon">${item.icon}</span>
               <span>${item.label}</span>
             </a>
           `;
-        })
-        .join("")}
+      })
+      .join("")}
     </nav>
     <div class="sidebar-meta">
       <h4>${metaTitle}</h4>
@@ -155,8 +155,8 @@ function renderRoleSwitcher(ctx) {
   return `
     <select id="role-switcher" class="role-switcher" aria-label="切换角色">
       ${ctx.currentUser.roles
-        .map((role) => `<option value="${role}" ${role === ctx.role ? "selected" : ""}>${roleLabels[role]}视图</option>`)
-        .join("")}
+      .map((role) => `<option value="${role}" ${role === ctx.role ? "selected" : ""}>${roleLabels[role]}视图</option>`)
+      .join("")}
     </select>
   `;
 }
@@ -172,6 +172,7 @@ function getMenuItems(role) {
   return [
     { key: "dashboard", href: "/dashboard", label: navMeta.dashboard.label, icon: navMeta.dashboard.icon },
     { key: "users", href: "/users", label: navMeta.users.label, icon: navMeta.users.icon },
+    { key: "question-bank", href: "/question-bank", label: navMeta.questionBank.label, icon: navMeta.questionBank.icon },
     { key: "profile", href: "/profile", label: navMeta.profile.label, icon: navMeta.profile.icon },
   ];
 }
@@ -183,6 +184,10 @@ function isNavItemActive(route, key) {
 
   if (key === "dashboard") {
     return route.name === "dashboard";
+  }
+
+  if (key === "question-bank") {
+    return route.name === "question-bank" || route.name === "question-create" || route.name === "question-edit" || route.name === "question-detail";
   }
 
   return route.name === "profile";

@@ -35,6 +35,19 @@
     return;
   }
 
+  if (target.id === "question-filters-form") {
+    event.preventDefault();
+    const formData = new FormData(target);
+    appState.questionFilters = {
+      query: String(formData.get("query") || ""),
+      type: String(formData.get("type") || "all"),
+      difficulty: String(formData.get("difficulty") || "all"),
+      status: String(formData.get("status") || "all"),
+    };
+    renderApp();
+    return;
+  }
+
   if (target.id === "user-form") {
     event.preventDefault();
     handleUserFormSubmit(target);
@@ -44,6 +57,24 @@
   if (target.id === "profile-form") {
     event.preventDefault();
     handleProfileSubmit(target);
+    return;
+  }
+
+  if (target.id === "question-form") {
+    event.preventDefault();
+    handleQuestionFormSubmit(target);
+    return;
+  }
+
+  if (target.id === "question-review-form") {
+    event.preventDefault();
+    handleQuestionReviewSubmit(target);
+    return;
+  }
+
+  if (target.id === "question-import-form") {
+    event.preventDefault();
+    handleQuestionImportSubmit(target);
   }
 }
 
@@ -86,7 +117,406 @@ function handleClick(event) {
   if (action === "reset-filters") {
     appState.userFilters = { query: "", role: "all", status: "all" };
     renderApp();
+    return;
   }
+
+  if (action === "reset-question-filters") {
+    appState.questionFilters = { query: "", type: "all", difficulty: "all", status: "all" };
+    renderApp();
+    return;
+  }
+
+  if (action === "submit-question-review") {
+    handleSubmitQuestionReview(target.dataset.questionId);
+    return;
+  }
+
+  if (action === "clone-sample-question") {
+    handleCloneSampleQuestion();
+  }
+}
+
+function handleQuestionFormSubmit(form) {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+
+  if (!currentSession || !currentUser) {
+    setFlash("登录状态已失效，请重新登录。", "warning");
+    navigate("/login");
+    return;
+  }
+
+  if (!hasPermission({ permissions: getPermissionsForRole(currentSession.currentRole) }, "question:create")) {
+    showToast("当前角色无权维护试题。", "warning");
+    return;
+  }
+
+  const editingId = form.dataset.questionId || "";
+  const questions = getQuestions();
+  const editingTarget = editingId ? questions.find((item) => item.id === editingId) ?? null : null;
+
+  if (editingId && !editingTarget) {
+    showToast("目标试题不存在。", "danger");
+    navigate("/question-bank");
+    return;
+  }
+
+  if (editingTarget && !canManageQuestionByScope(currentSession.currentRole, currentUser, editingTarget)) {
+    showToast("当前角色不能编辑该试题。", "warning");
+    navigate("/question-bank");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const type = String(formData.get("type") || "single").trim();
+  const stem = String(formData.get("stem") || "").trim();
+  const answer = String(formData.get("answer") || "").trim();
+  const analysis = String(formData.get("analysis") || "").trim();
+  const optionsText = String(formData.get("optionsText") || "").trim();
+  const options = optionsText
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const score = Number(formData.get("score"));
+  const difficulty = Number(formData.get("difficulty"));
+  const knowledgePoint = String(formData.get("knowledgePoint") || "").trim();
+  const subject = String(formData.get("subject") || "").trim();
+  const chapter = String(formData.get("chapter") || "").trim();
+  const tags = String(formData.get("tagsText") || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const estimatedMinutes = Number(formData.get("estimatedMinutes"));
+  const mediaName = String(formData.get("mediaName") || "").trim();
+  const language = String(formData.get("language") || "").trim();
+  const sharedScope = String(formData.get("sharedScope") || "personal").trim();
+
+  if (!stem) {
+    showToast("题干内容不能为空。", "warning");
+    return;
+  }
+
+  if (!answer) {
+    showToast("参考答案不能为空。", "warning");
+    return;
+  }
+
+  if (!Number.isFinite(score) || score < 0) {
+    showToast("分值必须大于等于 0。", "warning");
+    return;
+  }
+
+  if (!Number.isFinite(difficulty) || difficulty < 1 || difficulty > 5) {
+    showToast("难度级别必须在 1-5 之间。", "warning");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let savedQuestion;
+
+  if (editingTarget) {
+    savedQuestion = {
+      ...editingTarget,
+      type,
+      stem,
+      answer,
+      analysis,
+      options,
+      score,
+      difficulty,
+      knowledgePoint,
+      subject,
+      chapter,
+      tags,
+      estimatedMinutes: Number.isFinite(estimatedMinutes) ? Math.max(1, estimatedMinutes) : editingTarget.estimatedMinutes,
+      mediaName,
+      language,
+      sharedScope,
+      updatedAt: now,
+      version: (editingTarget.version || 1) + 1,
+    };
+  } else {
+    savedQuestion = {
+      id: createId("question"),
+      type,
+      stem,
+      answer,
+      analysis,
+      options,
+      score,
+      difficulty,
+      knowledgePoint,
+      subject,
+      chapter,
+      tags,
+      estimatedMinutes: Number.isFinite(estimatedMinutes) ? Math.max(1, estimatedMinutes) : 3,
+      mediaName,
+      language,
+      sharedScope,
+      status: "draft",
+      version: 1,
+      usageCount: 0,
+      correctRate: 0,
+      createdBy: currentSession.userId,
+      reviewerId: "",
+      reviewComment: "",
+      createdAt: now,
+      updatedAt: now,
+      reviewedAt: "",
+    };
+  }
+
+  const nextQuestions = editingTarget
+    ? questions.map((item) => (item.id === editingTarget.id ? savedQuestion : item))
+    : [savedQuestion, ...questions];
+
+  saveQuestions(nextQuestions);
+  appendAuditLog({
+    userId: currentSession.userId,
+    action: editingTarget ? "update:question" : "create:question",
+    targetId: savedQuestion.id,
+    detail: `${currentUser.name}${editingTarget ? "更新" : "创建"}了试题：${savedQuestion.stem.slice(0, 20)}${savedQuestion.stem.length > 20 ? "..." : ""}`,
+  });
+
+  showToast(editingTarget ? "试题已更新。" : "试题草稿已创建。", "success");
+  navigate(`/question-bank/${savedQuestion.id}`);
+}
+
+function handleSubmitQuestionReview(questionId) {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+
+  if (!currentSession || !currentUser || !questionId) {
+    return;
+  }
+
+  const questions = getQuestions();
+  const target = questions.find((item) => item.id === questionId);
+
+  if (!target) {
+    showToast("目标试题不存在。", "danger");
+    return;
+  }
+
+  if (!canManageQuestionByScope(currentSession.currentRole, currentUser, target)) {
+    showToast("当前角色不能提交该试题审核。", "warning");
+    return;
+  }
+
+  if (!(target.status === "draft" || target.status === "rejected")) {
+    showToast("仅草稿或已驳回试题可提交审核。", "warning");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const nextQuestions = questions.map((item) =>
+    item.id === questionId
+      ? {
+        ...item,
+        status: "pending",
+        updatedAt: now,
+        reviewComment: "",
+        reviewerId: "",
+        reviewedAt: "",
+      }
+      : item
+  );
+
+  saveQuestions(nextQuestions);
+  appendAuditLog({
+    userId: currentSession.userId,
+    action: "submit:question",
+    targetId: questionId,
+    detail: `${currentUser.name} 提交了试题审核。`,
+  });
+  showToast("试题已提交审核。", "success");
+  renderApp();
+}
+
+function handleQuestionReviewSubmit(form) {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+
+  if (!currentSession || !currentUser) {
+    return;
+  }
+
+  if (!hasPermission({ permissions: getPermissionsForRole(currentSession.currentRole) }, "question:review")) {
+    showToast("当前角色没有审核权限。", "warning");
+    return;
+  }
+
+  const questionId = form.dataset.questionId || "";
+  const formData = new FormData(form);
+  const result = String(formData.get("result") || "").trim();
+  const comment = String(formData.get("comment") || "").trim();
+
+  if (result !== "approved" && result !== "rejected") {
+    showToast("审核结果必须为通过或驳回。", "warning");
+    return;
+  }
+
+  const questions = getQuestions();
+  const target = questions.find((item) => item.id === questionId);
+
+  if (!target) {
+    showToast("目标试题不存在。", "danger");
+    return;
+  }
+
+  if (target.status !== "pending") {
+    showToast("仅待审核试题可执行审核操作。", "warning");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const nextQuestions = questions.map((item) =>
+    item.id === questionId
+      ? {
+        ...item,
+        status: result,
+        updatedAt: now,
+        reviewerId: currentSession.userId,
+        reviewedAt: now,
+        reviewComment: comment,
+        version: (item.version || 1) + 1,
+      }
+      : item
+  );
+
+  saveQuestions(nextQuestions);
+  appendAuditLog({
+    userId: currentSession.userId,
+    action: "review:question",
+    targetId: questionId,
+    detail: `${currentUser.name}${result === "approved" ? "通过" : "驳回"}了试题审核。`,
+  });
+  showToast(`审核已提交：${result === "approved" ? "通过" : "驳回"}。`, "success");
+  renderApp();
+}
+
+function handleQuestionImportSubmit(form) {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+
+  if (!currentSession || !currentUser) {
+    return;
+  }
+
+  if (!hasPermission({ permissions: getPermissionsForRole(currentSession.currentRole) }, "question:import")) {
+    showToast("当前角色没有批量导入权限。", "warning");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const format = String(formData.get("format") || "").trim();
+  const fileName = String(formData.get("fileName") || "").trim();
+  const count = Number(formData.get("count"));
+
+  if (!["Excel", "Word", "TXT"].includes(format)) {
+    showToast("文件格式不支持。", "warning");
+    return;
+  }
+
+  if (!fileName) {
+    showToast("请上传有效的文件。", "warning");
+    return;
+  }
+
+  if (!Number.isFinite(count) || count < 1 || count > 20) {
+    showToast("模拟导入条数需在 1 到 20 之间。", "warning");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const imported = Array.from({ length: count }).map((_, index) => ({
+    id: createId("question"),
+    type: "single",
+    stem: `导入试题 ${index + 1}（来源：${fileName}）`,
+    options: ["A. 选项一", "B. 选项二", "C. 选项三", "D. 选项四"],
+    answer: "A",
+    analysis: "导入示例题，建议后续补充解析。",
+    score: 10,
+    difficulty: 3,
+    knowledgePoint: "待补充",
+    subject: "待归类",
+    chapter: "待归类",
+    tags: ["导入"],
+    estimatedMinutes: 3,
+    status: "draft",
+    version: 1,
+    usageCount: 0,
+    correctRate: 0,
+    createdBy: currentSession.userId,
+    reviewerId: "",
+    reviewComment: "",
+    createdAt: now,
+    updatedAt: now,
+    reviewedAt: "",
+    mediaName: "",
+    language: "",
+    sharedScope: "personal",
+  }));
+
+  const nextQuestions = [...imported, ...getQuestions()];
+  saveQuestions(nextQuestions);
+  appendAuditLog({
+    userId: currentSession.userId,
+    action: "import:question",
+    targetId: fileName,
+    detail: `${currentUser.name} 通过 ${format} 模板批量导入 ${count} 道试题。`,
+  });
+
+  showToast(`导入完成：成功 ${count} 条，失败 0 条。`, "success");
+  renderApp();
+}
+
+function handleCloneSampleQuestion() {
+  const currentSession = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(currentSession, users);
+
+  if (!currentSession || !currentUser) {
+    return;
+  }
+
+  const source = getQuestions()[0];
+
+  if (!source) {
+    showToast("当前没有可克隆的示例题。", "warning");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const cloned = {
+    ...source,
+    id: createId("question"),
+    stem: `${source.stem}（克隆）`,
+    status: "draft",
+    version: 1,
+    usageCount: 0,
+    correctRate: 0,
+    createdBy: currentSession.userId,
+    reviewerId: "",
+    reviewComment: "",
+    createdAt: now,
+    updatedAt: now,
+    reviewedAt: "",
+  };
+
+  saveQuestions([cloned, ...getQuestions()]);
+  appendAuditLog({
+    userId: currentSession.userId,
+    action: "clone:question",
+    targetId: cloned.id,
+    detail: `${currentUser.name} 克隆了一道示例试题。`,
+  });
+  showToast("已克隆一条示例试题草稿。", "success");
+  navigate(`/question-bank/${cloned.id}`);
 }
 
 function handleLoginSubmit(form) {
@@ -145,14 +575,15 @@ function handleLoginSubmit(form) {
   saveActiveSessions(activeSessions);
   setCurrentSession(session);
   appState.userFilters = { query: "", role: "all", status: "all" };
+  appState.questionFilters = { query: "", type: "all", difficulty: "all", status: "all" };
 
   const updatedUsers = users.map((item) =>
     item.id === user.id
       ? {
-          ...item,
-          lastLoginAt: loginAt,
-          updatedAt: loginAt,
-        }
+        ...item,
+        lastLoginAt: loginAt,
+        updatedAt: loginAt,
+      }
       : item
   );
 
@@ -513,10 +944,10 @@ function handleToggleUserStatus(userId, nextStatus) {
   const nextUsers = users.map((user) =>
     user.id === userId
       ? {
-          ...user,
-          status: nextStatus,
-          updatedAt: now,
-        }
+        ...user,
+        status: nextStatus,
+        updatedAt: now,
+      }
       : user
   );
   saveUsers(nextUsers);
@@ -556,10 +987,10 @@ function handleResetPassword(userId) {
   const nextUsers = users.map((user) =>
     user.id === userId
       ? {
-          ...user,
-          password: "Demo12345",
-          updatedAt: new Date().toISOString(),
-        }
+        ...user,
+        password: "Demo12345",
+        updatedAt: new Date().toISOString(),
+      }
       : user
   );
 
@@ -607,6 +1038,11 @@ function handleRoleSwitch(nextRole) {
     return;
   }
 
+  if (nextRole === "Student" && getHashPath().startsWith("/question-bank")) {
+    navigate("/dashboard");
+    return;
+  }
+
   renderApp();
 }
 
@@ -627,6 +1063,7 @@ function handleLogout() {
 
   clearCurrentSession({ removeRegistry: true });
   appState.userFilters = { query: "", role: "all", status: "all" };
+  appState.questionFilters = { query: "", type: "all", difficulty: "all", status: "all" };
   setFlash("你已安全退出登录。", "success");
   navigate("/login");
 }
@@ -712,8 +1149,10 @@ function resetLocalData() {
   localStorage.removeItem(STORAGE_KEYS.users);
   localStorage.removeItem(STORAGE_KEYS.auditLogs);
   localStorage.removeItem(STORAGE_KEYS.activeSessions);
+  localStorage.removeItem(STORAGE_KEYS.questions);
   sessionStorage.removeItem(SESSION_KEYS.currentSession);
   appState.userFilters = { query: "", role: "all", status: "all" };
+  appState.questionFilters = { query: "", type: "all", difficulty: "all", status: "all" };
   seedDemoData();
   setFlash("系统数据已恢复到初始状态。", "success");
   navigate("/login");
