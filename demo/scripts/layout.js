@@ -17,31 +17,39 @@
             <span class="brand-mark__icon">智</span>
             <span>智考云</span>
           </div>
-          <h1 class="auth-title">统一管理身份入口<br />清晰进入对应工作区</h1>
-          <p class="auth-subtitle">
-            面向课程与教学场景的考试系统入口，覆盖学生、教师与管理员三类角色。
-          </p>
-          <ul class="auth-feature-list">
-            <li><span class="auth-feature-dot"></span> 学生、教师、管理员分角色进入</li>
-            <li><span class="auth-feature-dot"></span> 用户状态与资料统一维护</li>
-            <li><span class="auth-feature-dot"></span> 支持角色切换与账号安全提醒</li>
-          </ul>
-          <div class="auth-stat-grid">
-            <div class="auth-stat-card">
-              <div class="auth-stat-label">平台账号总数</div>
-              <div class="auth-stat-value">${stats.total}</div>
-            </div>
-            <div class="auth-stat-card">
-              <div class="auth-stat-label">学生账号</div>
-              <div class="auth-stat-value">${stats.students}</div>
-            </div>
-            <div class="auth-stat-card">
-              <div class="auth-stat-label">教师 / 管理员</div>
-              <div class="auth-stat-value">${stats.teachers} / ${stats.admins}</div>
-            </div>
-            <div class="auth-stat-card">
-              <div class="auth-stat-label">异常账号状态</div>
-              <div class="auth-stat-value">${stats.lockedOrDisabled}</div>
+          <div class="auth-copy-block">
+            <h1 class="auth-title">让考试更简单</h1>
+            <p class="auth-subtitle">
+              面向课程与教学场景的考试系统入口，覆盖学生、教师与管理员三类角色。
+            </p>
+          </div>
+          <div class="auth-detail-panel">
+            <div class="auth-section-label">功能多样</div>
+            <ul class="auth-feature-list">
+              <li><span class="auth-feature-dot"></span> 智能易用，让工作更轻松</li>
+              <li><span class="auth-feature-dot"></span> 安全稳定，让工作更放心</li>
+              <li><span class="auth-feature-dot"></span> 直观报表，让工作更有效</li>
+            </ul>
+          </div>
+          <div class="auth-stat-block">
+            <div class="auth-section-label">账号概览</div>
+            <div class="auth-stat-grid">
+              <div class="auth-stat-card">
+                <div class="auth-stat-label">平台账号总数</div>
+                <div class="auth-stat-value">${stats.total}</div>
+              </div>
+              <div class="auth-stat-card">
+                <div class="auth-stat-label">学生账号</div>
+                <div class="auth-stat-value">${stats.students}</div>
+              </div>
+              <div class="auth-stat-card">
+                <div class="auth-stat-label">教师 / 管理员</div>
+                <div class="auth-stat-value">${stats.teachers} / ${stats.admins}</div>
+              </div>
+              <div class="auth-stat-card">
+                <div class="auth-stat-label">异常账号状态</div>
+                <div class="auth-stat-value">${stats.lockedOrDisabled}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -112,13 +120,13 @@ function renderSidebar(ctx) {
   const metaTitle = ctx.role === "Admin" ? "管理员视图" : ctx.role === "Teacher" ? "教师视图" : "学生视图";
 
   return `
-    <div class="sidebar-brand">
+    <a class="sidebar-brand sidebar-brand--home" href="#/dashboard" aria-label="返回首页">
       <div class="brand-mark__icon">智</div>
       <div>
         <strong>智考云</strong>
         <span>考试管理系统</span>
       </div>
-    </div>
+    </a>
     <nav class="sidebar-nav">
       ${menu
         .map((item) => {
