@@ -70,6 +70,8 @@ function renderProtectedRoute(route, ctx) {
       return renderProfilePage(ctx);
     case "exams":
       return renderExamsPage(ctx);
+    case "grades":
+      return renderGradesPage(ctx);
     case "exam-create":
       return renderExamFormPage(ctx, null);
     case "exam-taking": {

@@ -166,6 +166,7 @@ function getMenuItems(role) {
     return [
       { key: "dashboard", href: "/dashboard", label: navMeta.dashboard.label, icon: navMeta.dashboard.icon },
       { key: "exams", href: "/exams", label: navMeta.exams.label, icon: navMeta.exams.icon },
+      { key: "grades", href: "/grades", label: navMeta.grades.label, icon: navMeta.grades.icon },
       { key: "profile", href: "/profile", label: navMeta.profile.label, icon: navMeta.profile.icon },
     ];
   }
@@ -175,6 +176,7 @@ function getMenuItems(role) {
       { key: "dashboard", href: "/dashboard", label: navMeta.dashboard.label, icon: navMeta.dashboard.icon },
       { key: "users", href: "/users", label: navMeta.users.label, icon: navMeta.users.icon },
       { key: "exams", href: "/exams", label: navMeta.exams.label, icon: navMeta.exams.icon },
+      { key: "grades", href: "/grades", label: navMeta.grades.label, icon: navMeta.grades.icon },
       { key: "profile", href: "/profile", label: navMeta.profile.label, icon: navMeta.profile.icon },
     ];
   }
@@ -183,6 +185,7 @@ function getMenuItems(role) {
     { key: "dashboard", href: "/dashboard", label: navMeta.dashboard.label, icon: navMeta.dashboard.icon },
     { key: "users", href: "/users", label: navMeta.users.label, icon: navMeta.users.icon },
     { key: "exams", href: "/exams", label: navMeta.exams.label, icon: navMeta.exams.icon },
+    { key: "grades", href: "/grades", label: navMeta.grades.label, icon: navMeta.grades.icon },
     { key: "question-bank", href: "/question-bank", label: navMeta.questionBank.label, icon: navMeta.questionBank.icon },
     { key: "profile", href: "/profile", label: navMeta.profile.label, icon: navMeta.profile.icon },
   ];
@@ -200,6 +203,11 @@ function isNavItemActive(route, key) {
   if (key === "exams") {
     return route.name === "exams" || route.name === "exam-detail" || route.name === "exam-create" || route.name === "exam-edit" || route.name === "exam-taking";
   }
+
+  if (key === "grades") {
+    return route.name === "grades";
+  }
+
     if (key === "question-bank") {
     return route.name === "question-bank" || route.name === "question-create" || route.name === "question-edit" || route.name === "question-detail";
   }

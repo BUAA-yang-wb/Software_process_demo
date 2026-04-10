@@ -324,7 +324,108 @@
   color: var(--color-primary-strong);
 }
 
+.grades-flow-card {
+  margin-bottom: 14px;
+}
+
+.grades-flow-grid {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.grades-flow-arrow {
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.grade-filter-bar {
+  grid-template-columns: repeat(3, minmax(140px, 1fr)) auto;
+}
+
+.grade-filter-bar--student {
+  grid-template-columns: minmax(240px, 1fr) auto;
+}
+
+.grades-stats-grid {
+  margin-top: 10px;
+}
+
+.grades-section-grid {
+  margin-top: 14px;
+}
+
+.grade-form {
+  margin-top: 10px;
+}
+
+.grades-progress-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.grades-chart-list {
+  display: grid;
+  gap: 8px;
+}
+
+.grades-chart-row {
+  display: grid;
+  gap: 4px;
+}
+
+.grades-chart-label {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.grades-chart-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(47, 124, 246, 0.1);
+  overflow: hidden;
+}
+
+.grades-chart-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f7cf6, #58a5ff);
+}
+
+.grades-student-score {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.grades-student-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.grades-student-head h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.divider {
+  height: 1px;
+  margin: 10px 0;
+  background: rgba(19, 34, 56, 0.08);
+}
+
 @media (max-width: 1200px) {
+  .grades-progress-grid {
+    grid-template-columns: 1fr;
+  }
+
   .stats-grid,
   .hero-pill-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
