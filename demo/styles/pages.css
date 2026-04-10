@@ -126,6 +126,18 @@
   align-items: end;
 }
 
+.filter-bar--exam {
+  grid-template-columns: minmax(240px, 1fr) minmax(140px, 180px) auto;
+}
+
+.filter-bar--exam-admin {
+  grid-template-columns: minmax(220px, 260px) minmax(220px, 1fr) minmax(140px, 180px) auto;
+}
+
+.filter-bar--exam-admin-inner {
+  grid-template-columns: minmax(240px, 1fr) minmax(140px, 180px) auto;
+}
+
 .table-card {
   overflow: hidden;
   margin-top: 14px;
@@ -221,6 +233,79 @@
   font-size: 11px;
 }
 
+.exams-grid-single {
+  grid-template-columns: 1fr;
+}
+
+.exam-card-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.exam-card-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(47, 124, 246, 0.1);
+  background: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
+}
+
+.exam-card-item h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.exam-card-item__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.exam-card-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.exams-detail-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+}
+
+.exam-assignment-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.exam-assignment-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: #fff;
+}
+
+.exam-assignment-item strong {
+  display: block;
+  font-size: 12px;
+}
+
+.exam-assignment-item small {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+
 .forbidden-wrap {
   display: grid;
   place-items: center;
@@ -248,6 +333,7 @@
   .section-grid,
   .detail-grid,
   .profile-grid,
+  .exams-detail-grid,
   .hero-card {
     grid-template-columns: 1fr;
   }
