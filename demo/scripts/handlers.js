@@ -99,6 +99,54 @@
   if (target.id === "question-import-form") {
     event.preventDefault();
     handleQuestionImportSubmit(target);
+    return;
+  }
+
+  if (target.id === "grade-filters-form") {
+    event.preventDefault();
+    const formData = new FormData(target);
+    appState.gradeFilters = {
+      ...appState.gradeFilters,
+      examId: String(formData.get("examId") || "all"),
+      classId: String(formData.get("classId") || "all"),
+      analysisMode: String(formData.get("analysisMode") || "stats"),
+    };
+    renderApp();
+    return;
+  }
+
+  if (target.id === "student-grade-filters-form") {
+    event.preventDefault();
+    const formData = new FormData(target);
+    appState.gradeFilters = {
+      ...appState.gradeFilters,
+      studentExamId: String(formData.get("studentExamId") || "all"),
+    };
+    renderApp();
+    return;
+  }
+
+  if (target.id === "subjective-review-form") {
+    event.preventDefault();
+    handleSubjectiveReviewSubmit(target);
+    return;
+  }
+
+  if (target.id === "teacher-export-form") {
+    event.preventDefault();
+    handleTeacherExportSubmit(target);
+    return;
+  }
+
+  if (target.id === "student-export-form") {
+    event.preventDefault();
+    handleStudentExportSubmit(target);
+    return;
+  }
+
+  if (target.id === "grade-appeal-form") {
+    event.preventDefault();
+    handleGradeAppealSubmit(target);
   }
 }
 
@@ -221,6 +269,26 @@ function handleClick(event) {
 
   if (action === "clone-sample-question") {
     handleCloneSampleQuestion();
+    return;
+  }
+
+  if (action === "run-objective-grading") {
+    handleRunObjectiveGrading(target.dataset.examId);
+    return;
+  }
+
+  if (action === "publish-grade") {
+    handlePublishGrade(target.dataset.examId);
+    return;
+  }
+
+  if (action === "student-export-report") {
+    handleStudentExportAction(target.dataset.examId);
+    return;
+  }
+
+  if (action === "process-appeal") {
+    handleProcessAppeal(target.dataset.appealId, target.dataset.result);
     return;
   }
 }
@@ -900,6 +968,364 @@ function handleCloneSampleQuestion() {
   navigate(`/question-bank/${cloned.id}`);
 }
 
+function handleRunObjectiveGrading(examId) {
+  const session = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(session, users);
+
+  if (!session || !currentUser || !["Teacher", "Admin"].includes(session.currentRole)) {
+    showToast("当前角色无权执行客观题批阅。", "warning");
+    return;
+  }
+
+  const records = getGradeRecords();
+  const targetRecords = records.filter((record) => record.examId === examId);
+
+  if (!targetRecords.length) {
+    showToast("无答卷需批阅。", "warning");
+    return;
+  }
+
+  let changedCount = 0;
+  const now = new Date().toISOString();
+  const nextRecords = records.map((record) => {
+    if (record.examId !== examId) {
+      return record;
+    }
+
+    if (["objective-reviewed", "subjective-reviewed", "published"].includes(record.status)) {
+      return record;
+    }
+
+    changedCount += 1;
+    return {
+      ...record,
+      status: "objective-reviewed",
+      objectiveReviewedAt: now,
+      updatedAt: now,
+    };
+  });
+
+  if (!changedCount) {
+    showToast("该考试答卷已完成客观题批阅。", "info");
+    return;
+  }
+
+  saveGradeRecords(nextRecords);
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "auto:grade:objective",
+    targetId: examId,
+    detail: `${currentUser.name}完成了客观题自动批阅，共 ${changedCount} 份答卷。`,
+  });
+
+  showToast(`客观题批阅完成：${changedCount} 份。`, "success");
+  renderApp();
+}
+
+function handleSubjectiveReviewSubmit(form) {
+  const session = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(session, users);
+
+  if (!session || !currentUser || !["Teacher", "Admin"].includes(session.currentRole)) {
+    showToast("当前角色无权执行主观题评阅。", "warning");
+    return;
+  }
+
+  const examId = String(form.dataset.examId || "");
+  const formData = new FormData(form);
+  const studentId = String(formData.get("studentId") || "");
+  const subjectiveScore = Number(formData.get("subjectiveScore"));
+  const comment = String(formData.get("comment") || "").trim();
+
+  if (!studentId) {
+    showToast("请选择待评阅学生。", "warning");
+    return;
+  }
+
+  if (!Number.isFinite(subjectiveScore) || subjectiveScore < 0 || subjectiveScore > 70) {
+    showToast("主观题分数必须在 0 到 70 之间。", "warning");
+    return;
+  }
+
+  const records = getGradeRecords();
+  const target = records.find((record) => record.examId === examId && record.studentId === studentId);
+
+  if (!target) {
+    showToast("未找到对应答卷。", "warning");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const nextRecords = records.map((record) => {
+    if (record.id !== target.id) {
+      return record;
+    }
+
+    const nextTotal = Math.min(100, Math.max(0, Number(record.objectiveScore || 0) + subjectiveScore));
+    return {
+      ...record,
+      subjectiveScore,
+      totalScore: nextTotal,
+      teacherComment: comment || record.teacherComment,
+      status: "subjective-reviewed",
+      subjectiveReviewedAt: now,
+      updatedAt: now,
+    };
+  });
+
+  saveGradeRecords(nextRecords);
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "manual:grade:subjective",
+    targetId: target.id,
+    detail: `${currentUser.name}完成了主观题人工评阅。`,
+  });
+
+  showToast("主观题评阅已保存。", "success");
+  renderApp();
+}
+
+function handlePublishGrade(examId) {
+  const session = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(session, users);
+
+  if (!session || !currentUser || !["Teacher", "Admin"].includes(session.currentRole)) {
+    showToast("当前角色无权发布成绩。", "warning");
+    return;
+  }
+
+  const records = getGradeRecords();
+  const targetRecords = records.filter((record) => record.examId === examId);
+
+  if (!targetRecords.length) {
+    showToast("当前考试暂无成绩记录。", "warning");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let changedCount = 0;
+  const nextRecords = records.map((record) => {
+    if (record.examId !== examId) {
+      return record;
+    }
+
+    if (record.status === "published") {
+      return record;
+    }
+
+    changedCount += 1;
+    return {
+      ...record,
+      status: "published",
+      publishedAt: now,
+      updatedAt: now,
+    };
+  });
+
+  if (!changedCount) {
+    showToast("当前考试成绩已发布。", "info");
+    return;
+  }
+
+  saveGradeRecords(nextRecords);
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "publish:grade",
+    targetId: examId,
+    detail: `${currentUser.name}发布了考试成绩，共 ${changedCount} 份。`,
+  });
+
+  showToast(`成绩发布完成：${changedCount} 份。`, "success");
+  renderApp();
+}
+
+function handleTeacherExportSubmit(form) {
+  const session = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(session, users);
+
+  if (!session || !currentUser || !["Teacher", "Admin"].includes(session.currentRole)) {
+    showToast("当前角色无权导出教师端报告。", "warning");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const format = String(formData.get("format") || "excel");
+  const scope = String(formData.get("scope") || "exam");
+  const examId = String(form.dataset.examId || "");
+
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "export:grade:teacher",
+    targetId: examId || "all",
+    detail: `${currentUser.name}导出了教师端成绩报告（${format}/${scope}）。`,
+  });
+
+  showToast(`报告生成成功（演示）：格式 ${format.toUpperCase()}，范围 ${scope}。`, "success");
+}
+
+function handleStudentExportSubmit(form) {
+  const examId = String(form.dataset.examId || "");
+  handleStudentExportAction(examId, form);
+}
+
+function handleStudentExportAction(examId, form) {
+  const session = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(session, users);
+
+  if (!session || !currentUser || session.currentRole !== "Student") {
+    showToast("当前角色无权导出学生成绩单。", "warning");
+    return;
+  }
+
+  const format = form instanceof HTMLFormElement ? String(new FormData(form).get("format") || "pdf") : "pdf";
+
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "export:grade:student",
+    targetId: examId || "unknown",
+    detail: `${currentUser.name}下载了个人成绩单（${format}）。`,
+  });
+
+  showToast(`成绩单生成成功（演示）：${format.toUpperCase()}。`, "success");
+}
+
+function handleGradeAppealSubmit(form) {
+  const session = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(session, users);
+
+  if (!session || !currentUser || session.currentRole !== "Student") {
+    showToast("当前角色无权提交复核申请。", "warning");
+    return;
+  }
+
+  const examId = String(form.dataset.examId || "");
+  const formData = new FormData(form);
+  const reason = String(formData.get("reason") || "").trim();
+  const questionIds = String(formData.get("questionIds") || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (!examId) {
+    showToast("考试不存在。", "warning");
+    return;
+  }
+
+  if (reason.length < 10) {
+    showToast("申诉理由需至少10个字符。", "warning");
+    return;
+  }
+
+  const appeals = getGradeAppeals();
+  const hasPending = appeals.some(
+    (item) => item.examId === examId && item.studentId === currentUser.id && item.status === "pending"
+  );
+
+  if (hasPending) {
+    showToast("已有正在处理中的复核申请，请勿重复提交。", "warning");
+    return;
+  }
+
+  const nextAppeal = {
+    id: `appeal-${createId("rf")}`,
+    examId,
+    studentId: currentUser.id,
+    reason,
+    questionIds,
+    status: "pending",
+    result: "",
+    createdAt: new Date().toISOString(),
+    processedAt: "",
+    processedBy: "",
+  };
+
+  saveGradeAppeals([nextAppeal, ...appeals]);
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "create:grade:appeal",
+    targetId: nextAppeal.id,
+    detail: `${currentUser.name}提交了成绩复核申请。`,
+  });
+
+  form.reset();
+  showToast("复核申请已提交。", "success");
+  renderApp();
+}
+
+function handleProcessAppeal(appealId, result) {
+  const session = getCurrentSession();
+  const users = getUsers();
+  const currentUser = getCurrentUserFromSession(session, users);
+
+  if (!session || !currentUser || !["Teacher", "Admin"].includes(session.currentRole)) {
+    showToast("当前角色无权处理复核申请。", "warning");
+    return;
+  }
+
+  const appeals = getGradeAppeals();
+  const target = appeals.find((item) => item.id === appealId);
+
+  if (!target) {
+    showToast("复核申请不存在。", "warning");
+    return;
+  }
+
+  if (target.status !== "pending") {
+    showToast("该申请已处理，请刷新页面。", "info");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const nextAppeals = appeals.map((item) =>
+    item.id === appealId
+      ? {
+          ...item,
+          status: result === "adjust" ? "resolved" : "rejected",
+          result: result === "adjust" ? "成绩已调整" : "维持原分",
+          processedAt: now,
+          processedBy: currentUser.id,
+        }
+      : item
+  );
+  saveGradeAppeals(nextAppeals);
+
+  if (result === "adjust") {
+    const records = getGradeRecords();
+    const nextRecords = records.map((record) => {
+      if (record.examId !== target.examId || record.studentId !== target.studentId) {
+        return record;
+      }
+
+      const adjustedTotal = Math.min(100, Number(record.totalScore || 0) + 2);
+      return {
+        ...record,
+        totalScore: adjustedTotal,
+        subjectiveScore: Math.min(70, Number(record.subjectiveScore || 0) + 2),
+        teacherComment: "复核后已调整分数（演示）。",
+        status: "subjective-reviewed",
+        updatedAt: now,
+      };
+    });
+    saveGradeRecords(nextRecords);
+  }
+
+  appendAuditLog({
+    userId: currentUser.id,
+    action: "process:grade:appeal",
+    targetId: appealId,
+    detail: `${currentUser.name}${result === "adjust" ? "完成复核并调整成绩" : "完成复核并维持原分"}。`,
+  });
+
+  showToast(result === "adjust" ? "复核完成，成绩已调整并回流评阅。" : "复核完成，维持原成绩。", "success");
+  renderApp();
+}
+
 function handleLoginSubmit(form) {
   const formData = new FormData(form);
   const loginName = String(formData.get("loginName") || "").trim();
@@ -958,6 +1384,7 @@ function handleLoginSubmit(form) {
   appState.userFilters = { query: "", role: "all", status: "all" };
   appState.examFilters = { query: "", status: "all", teacherId: "all" };
   appState.questionFilters = { query: "", type: "all", difficulty: "all", status: "all" };
+  appState.gradeFilters = { examId: "all", classId: "all", analysisMode: "stats", compareType: "class", studentExamId: "all" };
 
   const updatedUsers = users.map((item) =>
     item.id === user.id

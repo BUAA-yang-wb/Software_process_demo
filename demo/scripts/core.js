@@ -34,6 +34,7 @@ const navMeta = {
   dashboard: { label: "首页", icon: "首" },
   users: { label: "用户管理", icon: "户" },
   exams: { label: "考试管理", icon: "考" },
+  grades: { label: "成绩中心", icon: "绩" },
   questionBank: { label: "题库管理", icon: "题" },
   profile: { label: "个人中心", icon: "我" },
 };
@@ -67,7 +68,7 @@ const questionShareScopeMeta = {
 };
 
 const permissionMap = {
-  Student: ["profile:view", "profile:update", "exam:view:own"],
+  Student: ["profile:view", "profile:update", "exam:view:own", "grade:view:own", "grade:appeal:create", "grade:export:own"],
   Teacher: [
     "user:view",
     "user:create",
@@ -84,6 +85,12 @@ const permissionMap = {
     "question:update",
     "question:submit",
     "question:import",
+    "grade:view",
+    "grade:review",
+    "grade:publish",
+    "grade:analyze",
+    "grade:export",
+    "grade:appeal:process",
     "profile:view",
     "profile:update",
   ],
@@ -105,6 +112,12 @@ const permissionMap = {
     "question:submit",
     "question:import",
     "question:review",
+    "grade:view",
+    "grade:review",
+    "grade:publish",
+    "grade:analyze",
+    "grade:export",
+    "grade:appeal:process",
     "profile:view",
     "profile:update",
   ],
@@ -134,6 +147,13 @@ const appState = {
     type: "all",
     difficulty: "all",
     status: "all",
+  },
+  gradeFilters: {
+    examId: "all",
+    classId: "all",
+    analysisMode: "stats",
+    compareType: "class",
+    studentExamId: "all",
   },
 };
 
@@ -861,6 +881,14 @@ function resolveRoute(path) {
     };
   }
 
+  if (path === "/grades") {
+    return {
+      name: "grades",
+      requiresAuth: true,
+      allowedRoles: ["Teacher", "Admin", "Student"],
+    };
+  }
+
   if (path === "/exams/new") {
     return {
       name: "exam-create",
@@ -1302,6 +1330,13 @@ function getActionLabel(action) {
     "review:question": "审核试题",
     "import:question": "批量导入试题",
     "clone:question": "克隆试题",
+    "auto:grade:objective": "客观题自动批阅",
+    "manual:grade:subjective": "主观题人工评阅",
+    "publish:grade": "发布成绩",
+    "export:grade:teacher": "导出教师端成绩报告",
+    "export:grade:student": "导出学生端成绩单",
+    "create:grade:appeal": "提交成绩复核申请",
+    "process:grade:appeal": "处理成绩复核申请",
   };
 
   return labels[action] ?? action;
